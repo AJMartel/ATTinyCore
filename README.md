@@ -1,4 +1,4 @@
-ATTiny Core - 1634, x313, x4, x41, x5, x61, x7, x8 and 828 for Arduino 1.6.5 and later
+ATTiny Core - 1634, x313, x4, x41, x5, x61, x7, x8 and 828 for Arduino 1.6.5 and later (1.8.x recommended)
 ============
 
 [![Join the chat at https://gitter.im/SpenceKonde/ATTinyCore](https://badges.gitter.im/SpenceKonde/ATTinyCore.svg)](https://gitter.im/SpenceKonde/ATTinyCore?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
@@ -7,7 +7,7 @@ ATTiny Core - 1634, x313, x4, x41, x5, x61, x7, x8 and 828 for Arduino 1.6.5 and
 ### [Installation](Installation.md) 
 ### [Basic Wiring](Wiring.md) 
 
-### ATtinyCore Universal
+#### ATtinyCore Universal
 This core supports the following processors - essentially every ATtiny processor that makes sense to use with Arduino. Click the processor name for part-specific information:
 
 * [ATtiny2313, 4313](avr/extras/ATtiny_x313.md)
@@ -22,7 +22,9 @@ This core supports the following processors - essentially every ATtiny processor
 
 Variants of these are also supported (such as the ATTiny1634R or ATTiny85V)
 
-This core will NOT support ATtiny x14/x17/x18 (ATtiny406, ATtiny212/412, ATtiny214/414/814/1614, ATtiny416/816/1616/3216, ATtiny417/817/1617/3217, etc) or other chips with the "PIC-like" peripherals that have come out since the microchip merger. A very large amount of work would be required to support these parts. See [#174](https://github.com/SpenceKonde/ATTinyCore/issues/174) for details.
+**1.2.0 adds a lot of new bootloader related features. There are sure to be bugs. Please report them using the github "issues" feature or in Microcontrollers section of Arduino forum**
+
+This core will NOT support ATtiny x14/x17/x18 (ATtiny406, ATtiny212/412, ATtiny214/414/814/1614, ATtiny416/816/1616/3216, ATtiny417/817/1617/3217, etc) or other chips with the "xMega-like" peripherals. A very large amount of work would be required to support these parts. See [#174](https://github.com/SpenceKonde/ATTinyCore/issues/174) for details. It looks like the Arduino team is planning to release an official board based on a part with similar peripherals; after this is done, work could begin on porting that to the similar ATTiny parts.
 
 ### Quick Gotcha list:
 
@@ -30,17 +32,34 @@ This core will NOT support ATtiny x14/x17/x18 (ATtiny406, ATtiny212/412, ATtiny2
 
 **When using a chip for the first time, or after changing the clock speed or BOD settings, you must do "burn bootloader" to set the fuses, even if you are not using a chip with a bootloader** 
 
-**When using analogRead(), use the A# constant to refer to the pin, not the digital pin number**
+**When using analogRead(), use the A# constant to refer to the pin, not the digital pin number.** Analog channel number (see table in datasheet entry for ADMUX register) can also be used - unlike the official core, you can use analogRead() with the differential ADC channels (for example). 
 
-**You cannot use the Pxn notation (ie, PB2, PA1, etc) to refer to pins.**
+**When using I2C on anything other than the ATTiny88** you **must** use an I2C pullup resistor on SCL and SDA (if there isn't already one on the I2C device you're working with - many breakout boards include them). On parts with real hardware I2C, the internal pullups are used, and this is sometimes good enough to work without external pullups; this is not the case for devices without hardware I2C (all devices supported by this core except 48/88) - the internal pullups can't be used here, so you must use external ones. That said, you should always ensure than an external pullup is present, even on devices with real hardware I2C (like the t88 and atmega devices) - while it often will work with the internal pullups, they are not as strong as the I2C spec requires. 
 
-**All ATTiny chips (as well as the vast majority of digital integrated circuits) require a 0.1uF ceramic capacitor between Vcc and Gnd for decoupling; this should be located as close to the chip as possible (minimize length of wires to cap). Devices with multiple Vcc pins, or an AVcc pin, should use a cap on those pins too. Do not be fooled by poorly written tutorials or guides that omit these.**
+**You cannot use the Pxn notation (ie, PB2, PA1, etc) to refer to pins** To refer to pins by port and bit, use PIN_xn (ex, PIN_B2); these are #defined to the Arduino pin number for the pin in question, and can be used wherever digital pin numbers can be used
 
-### Bootloader Support (ATtiny 841, 828, 1634, 87, 167 only)
+**All ATTiny chips (as well as the vast majority of digital integrated circuits) require a 0.1uF ceramic capacitor between Vcc and Gnd for decoupling; this should be located as close to the chip as possible (minimize length of wires to cap). Devices with multiple Vcc pins, or an AVcc pin, should use a cap on those pins too. Do not be fooled by poorly written tutorials or guides that omit these. Yes, I know that in some cases (ex, the x5 series) the datasheet doesn't mention these - but I've had problems when it was omitted on a t85.**
 
-The Optiboot bootloader is included for the ATtiny 841, 1634, 828 and x7 series (87 and 167). This runs at 57600 baud at 8mhz and slower, and  115200 baud above that. By default it uses UART0 or the LIN/UART as appropriate (bootloaders that use UART1 for devices that have a second UART are included, prefixed with "ser1" - you must flash them manually or modify boards.txt if you wish to use them). Once the bootloader is programmed, the target can be programmed over serial; the bootloader will run after reset, just like on a normal Arduino. The standard DTR reset circuit is highly recommended. 
+**For low power applications, before entering sleep, remember to turn off the ADC (ADCSRA&=(~(1<<ADEN))) - otherwise it will waste ~270uA**
 
-The ATtiny841, ATtiny1634, and the ATtiny x7 series do not have hardware bootloader support. To make the bootloader work, the "Virtual Boot" functionality of Optiboot is used. Because of this, the Watchdog Timer interrupt vector will always point to the start of the program, and cannot be used for other functionality. Under the hood, the bootloader rewrites the reset and WDT interrupt vectors, pointing the WDT vector at the start of the program (where the reset vector would have pointed), and the reset vector to the bootloader (as there is no BOOTRST fuse).  As a result of this, the Watchdog Timer cannot be used as a software interrupt on these parts, and attempting to do so will cause strange behavior - however, it can still be used to reset the chip. This does not effect the 828 (it has hardware bootloader support), nor does it effect the 1634 or 841 if they are programmed via ISP. 
+### Bootloader Support (ATtiny 441/841, 44/84, 45/85, 461/861, 48/88, 828, 1634, 87, 167 only)
+
+The Optiboot bootloader is included for the ATtiny 441, 841, 44, 84, 45, 85, 461, 861, 48, 88, 1634, 828, 87 and 167. For boards with a hardware UART, this runs at 57600 baud at 8mhz and slower, and  115200 baud above that; for boards without hardware UART, it runs at 19200 baud (on these boards TX/RX pins are the same as the builtin software serial, the ones marked AIN0 (tx) and AIN1(rx)).  By default it uses UART0 or the LIN/UART as appropriate (bootloaders that use UART1 for devices that have a second UART are included, prefixed with "ser1" - you must flash them manually or modify boards.txt if you wish to use them). Once the bootloader is programmed, the target can be programmed over serial; the bootloader will run after reset, just like on a normal Arduino. The standard DTR reset circuit is highly recommended. Bootloaders are not included for the 2k-flash versions of these parts - more than a quarter of the available flash would go to the bootloader, and the Arduino abstraction is already severely constrained with just 2k of flash. For these parts, we recommend ISP programming. 
+
+The ATtiny441/841, ATtiny1634, ATtiny44/84, ATtiny45/85, ATtiny461/861, ATtiny48/88 and the ATtiny x7 series do not have hardware bootloader support. To make the bootloader work, the "Virtual Boot" functionality of Optiboot is used. Because of this, another vector is used to point to point to the start of the applications - this interrupt cannot be used by the application - under the hood, the bootloader rewrites the reset and "save" interrupt vectors, pointing the save vector at the start of the program (where the reset vector would have pointed), and the reset vector to the bootloader (as there is no BOOTRST fuse). Up until version 1.2.0 of this core, the WDT vector was used for this purpose. In 1.2.0 and later, the EE_RDY vector (which is not used by anything in Arduino-land - the EEPROM library uses a busy-wait) is used instead. **If the bootloader was burned with 1.1.5 or earlier of this core, the WDT cannot be used to generate an interrupt** - re-burning bootloader with 1.2.0 or later will resolve this. 
+
+### Changing the ATtiny clock speed and other settings
+
+Changing the ATtiny clock speed, B.O.D. settings etc. is made easy: After the [Installation](Installation.md), in the menu “Tools” there will appear extra submenus where we can set several ATtiny properties: 
+
+* Tools > Save EEPROM: (Boards without bootloader only - controls whether EEPROM is erased during a chip erase cycle)
+* Tools > Timer 1 clock: (ATTiny85 only - allows timer1 to be clocked off the PLL for higher frequency PWM)
+* Tools > LTO: (Link Time Optimization makes sketches smaller, but requires AVR boards 1.6.11 or later)
+* Tools > B.O.D Level: (trigger voltage for Brown Out Detection - below this voltage, chip will be held in reset)
+* Tools > Chip: (Select the part being used)
+* Tools > Clock:  (Select the desired clock speed)
+* Tools > B.O.D. Mode (active): (441, 841, 1634, 828 only - see B. O. D. section below)
+* Tools > B.O.D. Mode (sleep): (441, 841, 1634, 828 only - see B. O. D. section below)
 
 ### Supported clock speeds:
 
@@ -67,6 +86,8 @@ External crystal (in addition to above, x41, 1634 only in 1.1.4 and earlier, all
 * 9.216 MHz
 * 7.37 MHz
 
+All available clock options for the selected processor will be shown in the Tools -> Clock menu.
+
 **Warning** When using weird clock frequencies (ones with a frequency (in MHz) by which 64 cannot be divided evenly), micros() is 4-5 times slower (~110 clocks) (It reports the time at the point when it was called, not the end, however, and the time it gives is pretty close to reality - w/in 1% or so). This combination of performance and accuracy is the result of hand tuning for these clock speeds. For other clock speeds (for example, if you add your own), it will be slower still - hundreds of clock cycles - though the numbers will be reasonably accurate. Millis() is not effected, only micros() and delay(). 
 
 This differs from the behavior of official Arduino boards - the "stock" micros() executes equally fast at all clock speeds, but returns wrong values with anything that 64 doesn't divide evenly by.
@@ -82,8 +103,7 @@ For those who prefer to compile with a makefile instead of the IDE, sketches can
 I2C support
 ------------
 
-On the following chips, I2C functionality can be achieved with the hardware USI. As of version 1.1.3 this is handled transparently via the special version of the Wire library included with this core.  
-
+On the following chips, I2C functionality can be achieved with the hardware USI. As of version 1.1.3 this is handled transparently via the special version of the Wire library included with this core. Be aware that USI-based I2C is not available when USI-based SPI is in use.  
 * ATtiny x5 (25/45/85)
 * ATtiny x4 (24/44/84)
 * ATtiny x61 (262/461/861)
@@ -91,7 +111,7 @@ On the following chips, I2C functionality can be achieved with the hardware USI.
 * ATtiny x313 (2313/4313)
 * ATtiny 1634
 
-On the following chips, slave I2C functionality is provided in hardware, but a software implementation must be used for master functionality. This is done automatically with the included Wire library. 
+On the following chips, slave I2C functionality is provided in hardware, but a software implementation must be used for master functionality. This is done automatically with the included Wire library. Be aware that this is currently a bit of a flash-hog; there are plans to improve this in a future release ( #226 ).
 * ATtiny 828
 * ATtiny x41 (441/841)
 
@@ -107,7 +127,7 @@ On the following chips, full SPI functionality is provided in hardware, and work
 * ATtiny x41 (441/841)
 * ATtiny x8 (48, 88)
 
-On the following chips, SPI functionality can be achieved with the hardware USI - as of version 1.1.3 of this core, this should be handled transparently via the SPI library. Take care to note that the **USI does not have MISO/MOSI, it has DI/DO**; when operating in master mode, DI is MISO, and DO is MOSI. When operating in slave mode, DI is MOSI and DO is MISO. The #defines for MISO and MOSI assume master mode (as this is much more common). Clock dividers 2, 4, 8 and >=14 are implemented as separate routines; **call `SPISettings` or `setClockDivider` with a constant value to use less program space**, otherwise, all routines will be included along with 32-bit math. Clock dividers larger than 14 are only approximate because the routine is optimized for size, not exactness. Also, interrupts are not disabled during data transfer as SPI clock doesn't need to be precise in most cases. If you use long interrupt routines or require consistent clocking, wrap calls to `transfer` in `ATOMIC_BLOCK`.
+On the following chips, SPI functionality can be achieved with the hardware USI - as of version 1.1.3 of this core, this should be handled transparently via the SPI library. Take care to note that the **USI does not have MISO/MOSI, it has DI/DO**; when operating in master mode, DI is MISO, and DO is MOSI. When operating in slave mode, DI is MOSI and DO is MISO. The #defines for MISO and MOSI assume master mode (as this is much more common). Clock dividers 2, 4, 8 and >=14 are implemented as separate routines; **call `SPISettings` or `setClockDivider` with a constant value to use less program space**, otherwise, all routines will be included along with 32-bit math. Clock dividers larger than 14 are only approximate because the routine is optimized for size, not exactness. Also, interrupts are not disabled during data transfer as SPI clock doesn't need to be precise in most cases. If you use long interrupt routines or require consistent clocking, wrap calls to `transfer` in `ATOMIC_BLOCK`. Be aware that USI-based I2C is not available when USI-based SPI is in use.
 * ATtiny x5 (25/45/85)
 * ATtiny x4 (24/44/84)
 * ATtiny x61 (262/461/861)
@@ -131,10 +151,10 @@ On the following chips, **no hardware serial is available**, however, a built-in
 * ATtiny x61 (261/461/861)
 * ATtiny x8 (48/88)
 
-This core is also fully compatible with the usual SoftwareSerial library. 
+This core is also fully compatible with the usual SoftwareSerial library if you want a software serial port on a different pin - however, you can still only transmit or receive on a single software serial instance at a time - on parts without hardware serial, this includes the builtin software serial "Serial" implementation noted above. 
 
 **Warning: Internal oscillator and Serial**
-Note that when using the internal oscillator or pll clock, you may need to tune the chip (using one of many tiny tuning sketches) and set OSCCAL to the value the tuner gives you on startup in order to make serial (software or hardware) work at all - the internal clock is only calibrated to +/- 10% in most cases, while serial communication requires it to be within just a few percent. However, in practice, a larger portion of parts work without tuning than would be expected from the spec. 
+Note that when using the internal oscillator or pll clock, you may need to tune the chip (using one of many tiny tuning sketches) and set OSCCAL to the value the tuner gives you on startup in order to make serial (software or hardware) work at all - the internal clock is only calibrated to +/- 10% in most cases, while serial communication requires it to be within just a few percent. However, in practice, a larger portion of parts work without tuning than would be expected from the spec. That said, for the ATTiny x4, x5, x8, and x61 series I have yet to encounter a chip that was not close enough for serial using the internal oscillator at 3.3~5v at room temperature - This is consistent with the Typical Characteristics section of the datasheet, which indicates that the oscillator is fairly stable w/respect to voltage, but highly dependent on temperature. 
 
 The ATtiny x41 series, 1634R, and 828R have an internal oscillator factory calibrated to +/- 2% - but only at operating voltage below 4v. Above 4v, the oscillator gets significantly faster, and is no longer good enough for UART communications. The 1634 and 828 (non-R) are not as tightly calibrated (so they may need tuning even at 3.3v) and are a few cents less expensive, but suffer from the same problem at higher voltages. Due to these complexities, **it is recommended that those planning to use serial (except on a x41, 1634R or 828R at 2.5~3.3v) use an external crystal.**
 
@@ -154,7 +174,9 @@ Most of the ATTiny parts only have two timers. The attiny841 has a third timer -
 
 B. O. D. (brown out detect) Configuration option
 --------
-All chips have a menu to select the level of Brown-out Detection, if any, to use. Brown-out detection continuously monitors Vcc, and holds the chip in reset state (BOR) if the applied voltage is below a certain threshold. This is a good idea with slow-rising power supplies or where it is expected that the supply voltage could droop below the required operating voltage for the frequency it is running at (see the speed grade specification for the part you're using) - without BOD enabled, this can put the chip into a hung state until manually reset. However, BOD increases power consumption slightly, and hence may be inappropriate in low power applications. The selected BOD option is configured by the fuses, and as such these settings are applied upon burning bootloader, not upon sketch upload. 
+Brown-out detection continuously monitors Vcc, and holds the chip in reset state (BOR) if the applied voltage is below a certain threshold. This is a good idea with slow-rising power supplies or where it is expected that the supply voltage could droop below the required operating voltage for the frequency it is running at (see the speed grade specification for the part you're using) - without BOD enabled, this can put the chip into a hung state until manually reset. However, BOD increases power consumption slightly, and hence may be inappropriate in low power applications. 
+
+The BOD voltage trigger level can be chosed from the tools -> BOD menu. The ATTiny 441, 841, and 1634 support independently configuring the BOD mode (active, sampled, disabled) for active and sleep modes (see the applicable datasheet for details). These are configured via the Tools -> BOD Mode (sleep) and Tools -> BOD Mode (active) menus.  The selected BOD option is configured by the fuses, so after changing these, you must do burn bootloader to set the fuses. 
 
 Memory Lock Bits, disabling Reset
 -------------

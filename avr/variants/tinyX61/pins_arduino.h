@@ -37,6 +37,8 @@
 
 #define digitalPinHasPWM(p)          ((p) == 4 || (p) == 6 || (p) == 8)
 
+#define ADC_TEMPERATURE 63
+
 //This part has a USI, not an SPI module. Accordingly, there is no MISO/MOSI in hardware. There's a DI and a DO. When the chip is used as master, DI is used as MISO, DO is MOSI; the defines here specify the pins for master mode, as SPI master is much more commonly used in Arduino-land than SPI slave, and these defines are required for compatibility. Be aware of this when using the USI SPI fucntionality (and also, be aware that the MISO and MOSI markings on the pinout diagram in the datasheet are for ISP programming, where the chip is a slave. The pinout diagram included with this core attempts to clarify this)
 
 
@@ -66,8 +68,8 @@
 #  define USI_START_COND_INT USISIF
 #endif
 
-static const uint8_t SDA = 0;
-static const uint8_t SCL = 2;
+static const uint8_t SDA = 7;
+static const uint8_t SCL = 9;
 
 //Ax constants cannot be used for digitalRead/digitalWrite/analogWrite functions, only analogRead().
 static const uint8_t A0 = 0x80 | 0;
